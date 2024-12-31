@@ -39,10 +39,22 @@ footer {
     padding: 10px 0;
 }
 .bio-container {
-    display: flex;
-    align-items: center;
-    gap: 20px;
+    text-align: center;
     margin-top: 20px;
+}
+
+.bio-container img {
+    display: block;
+    margin: 0 auto 20px;
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    border: 3px solid #333;
+}
+
+.bio-container p {
+    text-align: justify;
+    margin: 10px 0;
 }
 
 .profile-photo {
