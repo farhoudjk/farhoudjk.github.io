@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حساب‌کتاب سفر</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 30px;
+            font-size: 2.2em;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .add-expense {
+            background: #f7fafc;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .share-options {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .share-option {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .share-option input[type="radio"] {
+            width: auto;
+            margin-left: 8px;
+        }
+        
+        .share-option label {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .share-option input[type="radio"]:checked + label {
+            border-color: #667eea;
+            background-color: #f0f4ff;
+        }
+        
+        .custom-shares {
+            display: none;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .custom-shares.show {
+            display: flex;
+        }
+        
+        .custom-share {
+            flex: 1;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            font-weight: 600;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .expenses-list {
+            margin-bottom: 30px;
+        }
+        
+        .expense-item {
+            background: #f7fafc;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            border-right: 5px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .expense-details {
+            flex: 1;
+        }
+        
+        .expense-title {
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        
+        .expense-info {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .expense-amount {
+            font-size: 20px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .delete-btn {
+            background: #e53e3e;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .summary {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+        }
+        
+        .summary h2 {
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+        
+        .debt-info {
+            font-size: 18px;
+            font-weight: 600;
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        
+        .no-expenses {
+            text-align: center;
+            color: #718096;
+            font-style: italic;
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>حساب‌کتاب سفر فرهود و وحید</h1>
+        
+        <div class="add-expense">
+            <h3 style="margin-bottom: 20px; color: #4a5568;">افزودن هزینه جدید</h3>
+            
+            <div class="form-group">
+                <label for="description">شرح هزینه:</label>
+                <input type="text" id="description" placeholder="مثلاً: غذا، بنزین، هتل...">
+            </div>
+            
+            <div class="form-group">
+                <label for="amount">مبلغ (دلار کانادا):</label>
+                <input type="number" id="amount" placeholder="0">
+            </div>
+            
+            <div class="form-group">
+                <label for="payer">کی پرداخت کرده:</label>
+                <select id="payer">
+                    <option value="">انتخاب کنید...</option>
+                    <option value="فرهود">فرهود</option>
+                    <option value="وحید">وحید</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>تقسیم هزینه:</label>
+                <div class="share-options">
+                    <div class="share-option">
+                        <input type="radio" id="equal" name="shareType" value="equal" checked>
+                        <label for="equal">مساوی (50-50)</label>
+                    </div>
+                    <div class="share-option">
+                        <input type="radio" id="custom" name="shareType" value="custom">
+                        <label for="custom">دستی وارد کردن</label>
+                    </div>
+                </div>
+                
+                <div class="custom-shares" id="customShares">
+                    <div class="custom-share">
+                        <label>سهم فرهود (دلار کانادا):</label>
+                        <input type="number" id="farhodShare" placeholder="0">
+                    </div>
+                    <div class="custom-share">
+                        <label>سهم وحید (دلار کانادا):</label>
+                        <input type="number" id="vahidShare" placeholder="0">
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn" onclick="addExpense()">افزودن هزینه</button>
+        </div>
+        
+        <div class="expenses-list">
+            <h3 style="margin-bottom: 20px; color: #4a5568;">لیست هزینه‌ها</h3>
+            <div id="expensesList">
+                <div class="no-expenses">هنوز هزینه‌ای ثبت نشده است</div>
+            </div>
+        </div>
+        
+        <div class="summary">
+            <h2>تسویه حساب نهایی</h2>
+            <div id="summaryContent">
+                <p>بعد از ثبت هزینه‌ها، تسویه حساب نمایش داده می‌شود</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let expenses = [];
+        
+        // Toggle custom shares visibility
+        document.querySelectorAll('input[name="shareType"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const customShares = document.getElementById('customShares');
+                if (this.value === 'custom') {
+                    customShares.classList.add('show');
+                } else {
+                    customShares.classList.remove('show');
+                }
+            });
+        });
+        
+        function addExpense() {
+            const description = document.getElementById('description').value.trim();
+            const amount = parseFloat(document.getElementById('amount').value);
+            const payer = document.getElementById('payer').value;
+            const shareType = document.querySelector('input[name="shareType"]:checked').value;
+            
+            if (!description || !amount || !payer || amount <= 0) {
+                alert('لطفاً تمام فیلدها را پر کنید!');
+                return;
+            }
+            
+            let farhodShare, vahidShare;
+            
+            if (shareType === 'equal') {
+                farhodShare = amount / 2;
+                vahidShare = amount / 2;
+            } else {
+                farhodShare = parseFloat(document.getElementById('farhodShare').value) || 0;
+                vahidShare = parseFloat(document.getElementById('vahidShare').value) || 0;
+                
+                if (Math.abs(farhodShare + vahidShare - amount) > 0.01) {
+                    alert('مجموع سهم‌ها باید برابر با کل مبلغ باشد!');
+                    return;
+                }
+            }
+            
+            const expense = {
+                id: Date.now(),
+                description,
+                amount,
+                payer,
+                farhodShare,
+                vahidShare
+            };
+            
+            expenses.push(expense);
+            updateDisplay();
+            clearForm();
+        }
+        
+        function deleteExpense(id) {
+            expenses = expenses.filter(expense => expense.id !== id);
+            updateDisplay();
+        }
+        
+        function updateDisplay() {
+            updateExpensesList();
+            updateSummary();
+        }
+        
+        function updateExpensesList() {
+            const container = document.getElementById('expensesList');
+            
+            if (expenses.length === 0) {
+                container.innerHTML = '<div class="no-expenses">هنوز هزینه‌ای ثبت نشده است</div>';
+                return;
+            }
+            
+            container.innerHTML = expenses.map(expense => `
+                <div class="expense-item">
+                    <div class="expense-details">
+                        <div class="expense-title">${expense.description}</div>
+                        <div class="expense-info">
+                            پرداخت‌کننده: ${expense.payer} | 
+                            سهم فرهود: ${expense.farhodShare.toFixed(2)} | 
+                            سهم وحید: ${expense.vahidShare.toFixed(2)}
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <div class="expense-amount">${expense.amount.toFixed(2)}</div>
+                        <button class="delete-btn" onclick="deleteExpense(${expense.id})">حذف</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function updateSummary() {
+            if (expenses.length === 0) {
+                document.getElementById('summaryContent').innerHTML = 
+                    '<p>بعد از ثبت هزینه‌ها، تسویه حساب نمایش داده می‌شود</p>';
+                return;
+            }
+            
+            // محاسبه کل پرداختی هر نفر
+            let farhodPaid = 0, vahidPaid = 0;
+            let farhodOwes = 0, vahidOwes = 0;
+            
+            expenses.forEach(expense => {
+                if (expense.payer === 'فرهود') {
+                    farhodPaid += expense.amount;
+                } else {
+                    vahidPaid += expense.amount;
+                }
+                
+                farhodOwes += expense.farhodShare;
+                vahidOwes += expense.vahidShare;
+            });
+            
+            // محاسبه بدهی نهایی
+            const farhodBalance = farhodPaid - farhodOwes;
+            const vahidBalance = vahidPaid - vahidOwes;
+            
+            let summaryText = `
+                <div style="display: flex; justify-content: space-around; margin-bottom: 20px; flex-wrap: wrap; gap: 20px;">
+                    <div>
+                        <strong>فرهود:</strong><br>
+                        پرداخت کرده: ${farhodPaid.toFixed(2)}<br>
+                        سهم: ${farhodOwes.toFixed(2)}
+                    </div>
+                    <div>
+                        <strong>وحید:</strong><br>
+                        پرداخت کرده: ${vahidPaid.toFixed(2)}<br>
+                        سهم: ${vahidOwes.toFixed(2)}
+                    </div>
+                </div>
+            `;
+            
+            if (Math.abs(farhodBalance) < 0.01) {
+                summaryText += '<div class="debt-info">🎉 حساب‌ها تسویه است!</div>';
+            } else if (farhodBalance > 0) {
+                summaryText += `<div class="debt-info">وحید باید ${Math.abs(farhodBalance).toFixed(2)} به فرهود بدهد</div>`;
+            } else {
+                summaryText += `<div class="debt-info">فرهود باید ${Math.abs(farhodBalance).toFixed(2)} به وحید بدهد</div>`;
+            }
+            
+            document.getElementById('summaryContent').innerHTML = summaryText;
+        }
+        
+        function clearForm() {
+            document.getElementById('description').value = '';
+            document.getElementById('amount').value = '';
+            document.getElementById('payer').value = '';
+            document.getElementById('equal').checked = true;
+            document.getElementById('farhodShare').value = '';
+            document.getElementById('vahidShare').value = '';
+            document.getElementById('customShares').classList.remove('show');
+        }
+    </script>
+</body>
+</html>
