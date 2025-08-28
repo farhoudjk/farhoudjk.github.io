@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Splitting and Parallelism in LLMs</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+
+        .presentation-container {
+            width: 90%;
+            max-width: 1000px;
+            height: 600px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .slide {
+            width: 100%;
+            height: 100%;
+            padding: 40px 50px 80px 50px;
+            display: none;
+            flex-direction: column;
+            justify-content: flex-start;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        .slide.active {
+            display: flex;
+        }
+
+        .slide h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 40px;
+            color: #2d3748;
+            text-align: center;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .slide h2 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            margin-bottom: 25px;
+            color: #4a5568;
+        }
+
+        .slide h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin: 0 0 12px 0;
+        }
+
+        .content-section {
+            margin-bottom: 20px;
+        }
+
+        .content-section ul {
+            list-style: none;
+            padding-left: 20px;
+        }
+
+        .content-section li {
+            margin-bottom: 12px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            position: relative;
+            padding-left: 25px;
+        }
+
+        .content-section li:before {
+            content: "•";
+            color: #667eea;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+            font-size: 1.5rem;
+        }
+
+        .highlight {
+            background: linear-gradient(120deg, #a8edea 0%, #fed6e3 100%);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .problem-section {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 5px solid #e53e3e;
+        }
+
+        .goal-section {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 5px solid #38a169;
+        }
+
+        .challenges-section {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #dd6b20;
+        }
+
+        .navigation {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .nav-button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .nav-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        .nav-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .slide-counter {
+            background: rgba(255,255,255,0.9);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            color: #2d3748;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .checkmark {
+            color: #38a169;
+            font-size: 1.8rem;
+            margin-right: 10px;
+        }
+
+        .slide-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        @media (max-width: 768px) {
+            .presentation-container {
+                width: 95%;
+                height: 90vh;
+            }
+            
+            .slide {
+                padding: 40px 30px;
+            }
+            
+            .slide h1 {
+                font-size: 2rem;
+            }
+            
+            .slide h2 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation-container">
+        <!-- Slide 1 - Title Slide -->
+        <div class="slide active">
+            <div style="text-align: center;">
+                <h1 style="font-size: 3.5rem; margin-bottom: 60px;">Model Splitting and Parallelism in Large Language Models</h1>
+                
+                <div style="background: linear-gradient(135deg, rgba(102,126,234,0.1), rgba(118,75,162,0.1)); padding: 40px; border-radius: 15px; margin: 40px 0;">
+                    <h3 style="font-size: 1.5rem; color: #4a5568; margin-bottom: 20px;">Efficient Training & Inference Strategies</h3>
+                    <p style="font-size: 1.2rem; color: #718096; line-height: 1.6;">Understanding how to distribute massive neural networks across multiple devices for optimal performance</p>
+                </div>
+
+                <div style="margin-top: 60px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap;">
+                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 15px 30px; border-radius: 25px; font-weight: 600;">
+                        🧠 Deep Learning
+                    </div>
+                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 15px 30px; border-radius: 25px; font-weight: 600;">
+                        ⚡ High Performance Computing
+                    </div>
+                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 15px 30px; border-radius: 25px; font-weight: 600;">
+                        🔄 Distributed Systems
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2 -->
+        <div class="slide">
+            <div class="slide-header">
+                <span class="checkmark">✅</span>
+                <h2>Why Model Splitting and Parallelism in LLMs?</h2>
+            </div>
+
+            <div class="problem-section">
+                <h3>🚫 Problem</h3>
+                <p>Large Language Models (LLMs) like GPT-3 or GPT-4 have <span class="highlight">hundreds of billions of parameters</span> (hundreds of GBs), making it impossible to fit on a single GPU.</p>
+            </div>
+
+            <div class="goal-section">
+                <h3>🎯 Goal</h3>
+                <p>Efficiently train and infer with LLMs by <span class="highlight">splitting computation and memory load across multiple devices</span>.</p>
+            </div>
+
+            <div class="challenges-section">
+                <h3>⚡ Challenges</h3>
+                <ul>
+                    <li>Model size vs GPU memory</li>
+                    <li>Communication overhead</li>
+                    <li>Load balancing</li>
+                    <li>Minimizing idle time</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Slide 3 -->
+        <div class="slide">
+            <div class="slide-header">
+                <span class="checkmark">✅</span>
+                <h2>High-Level Categorization</h2>
+            </div>
+
+            <p style="font-size: 1.1rem; margin-bottom: 25px; color: #4a5568; font-weight: 500;">
+                Model Splitting and Parallelism can be grouped into <span class="highlight">four main strategies</span>:
+            </p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: calc(100% - 140px);">
+                <!-- Column 1 -->
+                <div>
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 30%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                        <h3 style="color: white; margin: 0;">A. Data Parallelism</h3>
+                    </div>
+                    <div style="font-size: 0.9rem; margin-bottom: 20px; padding: 0 5px;">
+                        <p><strong>What:</strong> Duplicate entire model on multiple GPUs; each GPU processes different mini-batch.</p>
+                        <p><strong>Pros:</strong> Simple (PyTorch DistributedDataParallel).</p>
+                        <p><strong>Cons:</strong> Requires full model copy → large memory.</p>
+                        <p><strong>Example:</strong> GPT-2 on 4 GPUs, each processes 16 token sequences.</p>
+                    </div>
+
+                    <div style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 30%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                        <h3 style="color: white; margin: 0;">C. Expert Parallelism</h3>
+                    </div>
+                    <div style="font-size: 0.9rem; padding: 0 5px;">
+                        <p><strong>What:</strong> Multiple experts; each token goes to subset of experts.</p>
+                        <p><strong>Example:</strong> Switch Transformer.</p>
+                        <p><strong>Benefit:</strong> Activates only part of model → efficiency.</p>
+                        <p><strong>Challenge:</strong> Load balancing between experts.</p>
+                    </div>
+                </div>
+
+                <!-- Column 2 -->
+                <div>
+                    <div style="background: linear-gradient(135deg, #48cae4 0%, #0077b6 30%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                        <h3 style="color: white; margin: 0;">B. Model Parallelism</h3>
+                    </div>
+                    <div style="font-size: 0.9rem; margin-bottom: 20px; padding: 0 5px;">
+                        <p style="margin-bottom: 10px;">Split <strong>model parameters/layers</strong> across GPUs:</p>
+                        
+                        <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #0077b6;">
+                            <h4 style="margin: 0 0 8px 0; color: #2d3748; font-size: 1rem;">1. Tensor (Intra-Layer)</h4>
+                            <p style="margin: 0; font-size: 0.85rem;">Split <strong>within single layer</strong>. Each GPU holds part of attention weights. Used in Megatron-LM.</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.85rem;"><strong>Trade-off:</strong> No idle time ↔ High communication.</p>
+                        </div>
+                        
+                        <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; border-left: 4px solid #0077b6;">
+                            <h4 style="margin: 0 0 8px 0; color: #2d3748; font-size: 1rem;">2. Pipeline Parallelism</h4>
+                            <p style="margin: 0; font-size: 0.85rem;">Split <strong>layers into stages</strong>: GPU1→Layers 0-11, GPU2→12-23, etc.</p>
+                            <p style="margin: 5px 0 0 0; font-size: 0.85rem;"><strong>Challenge:</strong> Pipeline bubble. <strong>Fix:</strong> Micro-batching.</p>
+                        </div>
+                    </div>
+
+                    <div style="background: linear-gradient(135deg, #06d6a0 0%, #118ab2 30%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                        <h3 style="color: white; margin: 0;">D. Sequence Parallelism</h3>
+                    </div>
+                    <div style="font-size: 0.9rem; padding: 0 5px;">
+                        <p><strong>What:</strong> Split input sequence tokens across GPUs to reduce activation memory.</p>
+                        <p><strong>Example:</strong> 2048 tokens on 4 GPUs = 512 tokens each.</p>
+                        <p><strong>Used in:</strong> Megatron-LM with ZeRO optimizations.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4 -->
+        <div class="slide">
+            <div class="slide-header">
+                <span class="checkmark">✅</span>
+                <h2>Technique Comparison: When to Use Each Approach</h2>
+            </div>
+
+            <div style="display: flex; justify-content: center; align-items: center; height: calc(100% - 80px);">
+                <div style="width: 100%; max-width: 800px;">
+                    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                                <th style="padding: 20px; text-align: left; font-size: 1.2rem; font-weight: 600;">Technique</th>
+                                <th style="padding: 20px; text-align: center; font-size: 1.2rem; font-weight: 600;">Training</th>
+                                <th style="padding: 20px; text-align: center; font-size: 1.2rem; font-weight: 600;">Inference<br/>(Single Prompt)</th>
+                                <th style="padding: 20px; text-align: center; font-size: 1.2rem; font-weight: 600;">Inference<br/>(Many Prompts)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="background: #f8f9fa; border-bottom: 2px solid #e9ecef;">
+                                <td style="padding: 18px; font-weight: 600; color: #2d3748; border-right: 2px solid #e9ecef;">
+                                    <span style="color: #667eea;">📊</span> Data Parallelism
+                                </td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">❌</td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                            </tr>
+                            <tr style="background: white; border-bottom: 2px solid #e9ecef;">
+                                <td style="padding: 18px; font-weight: 600; color: #2d3748; border-right: 2px solid #e9ecef;">
+                                    <span style="color: #48cae4;">🔗</span> Pipeline Parallel
+                                </td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                                <td style="padding: 18px; text-align: center;">
+                                    <div style="font-size: 1.8rem;">✅</div>
+                                    <div style="font-size: 0.8rem; color: #666; margin-top: 4px;">(if batchable)</div>
+                                </td>
+                            </tr>
+                            <tr style="background: #f8f9fa; border-bottom: 2px solid #e9ecef;">
+                                <td style="padding: 18px; font-weight: 600; color: #2d3748; border-right: 2px solid #e9ecef;">
+                                    <span style="color: #0077b6;">⚡</span> Tensor Parallel
+                                </td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                            </tr>
+                            <tr style="background: white; border-bottom: 2px solid #e9ecef;">
+                                <td style="padding: 18px; font-weight: 600; color: #2d3748; border-right: 2px solid #e9ecef;">
+                                    <span style="color: #06d6a0;">📝</span> Sequence Parallel
+                                </td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                            </tr>
+                            <tr style="background: #f8f9fa;">
+                                <td style="padding: 18px; font-weight: 600; color: #2d3748; border-right: 2px solid #e9ecef;">
+                                    <span style="color: #ff6b6b;">👥</span> Expert Parallel
+                                </td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                                <td style="padding: 18px; text-align: center; font-size: 1.8rem;">✅</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div style="margin-top: 25px; padding: 15px; background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); border-radius: 10px; border-left: 5px solid #dd6b20;">
+                        <p style="margin: 0; font-size: 0.95rem; color: #2d3748;">
+                            <strong>💡 Key Insight:</strong> Data Parallelism doesn't help single prompt inference because there's no batch to parallelize. Pipeline and other techniques can still provide benefits by distributing the model across devices.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5 -->
+        <div class="slide">
+            <div class="slide-header">
+                <span class="checkmark">✅</span>
+                <h2>Part 2: Single Device Acceleration (1/2)</h2>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: calc(100% - 80px);">
+                <!-- Column 1 -->
+                <div>
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 30%); color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                        <h3 style="color: white; margin: 0; font-size: 1.1rem;">A. Algorithmic Optimizations</h3>
+                    </div>
+                    
+                    <div style="font-size: 0.85rem; margin-bottom: 18px;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">1. Low-Rank Approximation</h4>
+                        <p style="margin: 0 0 6px 0;">Replace large weight matrices with low-rank factors.</p>
+                        <p style="margin: 0; color: #666;"><strong>Example:</strong> LoRA for fine-tuning.</p>
+                    </div>
+
+                    <div style="font-size: 0.85rem; margin-bottom: 18px;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">2. Quantization</h4>
+                        <p style="margin: 0 0 6px 0;">Reduce precision: FP32 → FP16 → INT8 → 4-bit.</p>
+                        <p style="margin: 0 0 6px 0; color: #666;"><strong>Examples:</strong> GPTQ, BitsAndBytes</p>
+                        <p style="margin: 0; background: #e8f5e8; padding: 4px 8px; border-radius: 4px;"><strong>Impact:</strong> Up to 4x memory reduction</p>
+                    </div>
+
+                    <div style="font-size: 0.85rem; margin-bottom: 18px;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">3. Pruning</h4>
+                        <p style="margin: 0 0 6px 0;">Remove unimportant weights or attention heads.</p>
+                        <p style="margin: 0; color: #666;"><strong>Example:</strong> SparseGPT</p>
+                    </div>
+
+                    <div style="font-size: 0.85rem;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">4. Knowledge Distillation</h4>
+                        <p style="margin: 0 0 6px 0;">Train smaller student from large teacher model.</p>
+                        <p style="margin: 0; color: #666;"><strong>Examples:</strong> DistilBERT, TinyLlama</p>
+                    </div>
+                </div>
+
+                <!-- Column 2 -->
+                <div>
+                    <div style="background: linear-gradient(135deg, #48cae4 0%, #0077b6 30%); color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                        <h3 style="color: white; margin: 0; font-size: 1.1rem;">B. Compute & Kernel Optimizations</h3>
+                    </div>
+                    
+                    <div style="font-size: 0.85rem; margin-bottom: 18px;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">1. Fused Kernels</h4>
+                        <p style="margin: 0 0 6px 0;">Merge multiple CUDA kernels to reduce launch overhead.</p>
+                        <p style="margin: 0 0 6px 0; color: #666;"><strong>Example:</strong> FlashAttention (Tri Dao et al.)</p>
+                        <p style="margin: 0; background: #e8f5e8; padding: 4px 8px; border-radius: 4px;"><strong>Impact:</strong> 2-4x speedup in attention</p>
+                    </div>
+
+                    <div style="font-size: 0.85rem; margin-bottom: 18px;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">2. Better Memory Layout</h4>
+                        <p style="margin: 0 0 6px 0;">Use tensor cores effectively (FP16/FP8).</p>
+                        <p style="margin: 0 0 6px 0;">Align data for GPU-friendly access patterns.</p>
+                        <p style="margin: 0; color: #666;"><strong>Example:</strong> NVIDIA cuBLAS with mixed precision</p>
+                    </div>
+
+                    <div style="font-size: 0.85rem;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">3. Operator Reordering</h4>
+                        <p style="margin: 0 0 6px 0;">Move computations to reduce memory bandwidth.</p>
+                        <p style="margin: 0; color: #666;"><strong>Example:</strong> Pre-compute LayerNorm stats</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 6 -->
+        <div class="slide">
+            <div class="slide-header">
+                <span class="checkmark">✅</span>
+                <h2>Part 2: Single Device Acceleration (2/2)</h2>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: calc(100% - 80px);">
+                <!-- Column 1 -->
+                <div>
+                    <div style="background: linear-gradient(135deg, #06d6a0 0%, #118ab2 30%); color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                        <h3 style="color: white; margin: 0; font-size: 1.1rem;">C. Memory Management</h3>
+                    </div>
+                    
+                    <div style="font-size: 0.85rem; margin-bottom: 18px;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">1. Activation Checkpointing</h4>
+                        <p style="margin: 0 0 6px 0;">Save memory by recomputing activations during backprop.</p>
+                        <p style="margin: 0; color: #666;"><strong>Example:</strong> PyTorch torch.utils.checkpoint</p>
+                    </div>
+
+                    <div style="font-size: 0.85rem; margin-bottom: 18px;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">2. Paged Attention</h4>
+                        <p style="margin: 0 0 6px 0;">Optimize KV cache using paged memory for long sequences.</p>
+                        <p style="margin: 0 0 6px 0; color: #666;"><strong>Example:</strong> vLLM framework (Zheng et al., 2023)</p>
+                        <p style="margin: 0; background: #e8f5e8; padding: 4px 8px; border-radius: 4px;"><strong>Impact:</strong> Large throughput improvement</p>
+                    </div>
+
+                    <div style="font-size: 0.85rem;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">3. Memory Offloading</h4>
+                        <p style="margin: 0 0 6px 0;">Move tensors between GPU and CPU memory (or SSD).</p>
+                        <p style="margin: 0; color: #666;"><strong>Example:</strong> HuggingFace Accelerate with offload</p>
+                    </div>
+                </div>
+
+                <!-- Column 2 -->
+                <div>
+                    <div style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 30%); color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                        <h3 style="color: white; margin: 0; font-size: 1.1rem;">D. Inference Acceleration</h3>
+                    </div>
+                    
+                    <div style="font-size: 0.85rem; margin-bottom: 18px;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">1. Speculative Decoding</h4>
+                        <p style="margin: 0 0 6px 0;">Draft model predicts tokens → main model verifies.</p>
+                        <p style="margin: 0 0 6px 0; color: #666;"><strong>Example:</strong> SpecInfer (Chen et al., 2023)</p>
+                        <p style="margin: 0; background: #e8f5e8; padding: 4px 8px; border-radius: 4px;"><strong>Impact:</strong> 2-3x faster inference</p>
+                    </div>
+
+                    <div style="font-size: 0.85rem; margin-bottom: 18px;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">2. KV Cache Optimizations</h4>
+                        <p style="margin: 0 0 6px 0;">Store key-value pairs efficiently across attention layers.</p>
+                        <p style="margin: 0 0 6px 0; color: #666;"><strong>Examples:</strong> PagedAttention in vLLM, Quantized KV cache</p>
+                    </div>
+
+                    <div style="font-size: 0.85rem;">
+                        <h4 style="margin: 0 0 8px 0; color: #2d3748;">3. Dynamic Batching</h4>
+                        <p style="margin: 0 0 6px 0;">Combine requests in real time to improve GPU utilization.</p>
+                        <p style="margin: 0; color: #666;"><strong>Examples:</strong> vLLM, TensorRT-LLM</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 7 -->
+        <div class="slide">
+            <div class="slide-header">
+                <span class="checkmark">📊</span>
+                <h2>Experimental Setup: Model & System Specifications</h2>
+            </div>
+
+            <div style="height: calc(100% - 80px); overflow-y: auto;">
+                <!-- Model Specifications -->
+                <div style="margin-bottom: 30px;">
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 10px 10px 0 0; text-align: center;">
+                        <h3 style="margin: 0; font-size: 1.3rem; color: white;">🦙 Model Specifications</h3>
+                    </div>
+                    
+                    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 0 0 10px 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.1); margin-bottom: 25px;">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #4a5568, #2d3748); color: white;">
+                                <th style="padding: 12px 20px; text-align: left; font-size: 1rem; font-weight: 600; width: 25%;">Parameter</th>
+                                <th style="padding: 12px 20px; text-align: center; font-size: 1rem; font-weight: 600; width: 25%;">Value</th>
+                                <th style="padding: 12px 20px; text-align: left; font-size: 1rem; font-weight: 600; width: 50%;">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="background: #f8f9fa; border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #2d3748;">
+                                    <span style="color: #667eea;">🏗️</span> Architecture
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #667eea;">
+                                    Llama-2-7B
+                                </td>
+                                <td style="padding: 15px 20px; color: #4a5568;">
+                                    Transformer-based large language model
+                                </td>
+                            </tr>
+                            <tr style="background: white; border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #2d3748;">
+                                    <span style="color: #48cae4;">⚙️</span> Parameters
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #48cae4;">
+                                    7 billion
+                                </td>
+                                <td style="padding: 15px 20px; color: #4a5568;">
+                                    Total trainable parameters
+                                </td>
+                            </tr>
+                            <tr style="background: #f8f9fa; border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #2d3748;">
+                                    <span style="color: #06d6a0;">📦</span> Quantization
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #06d6a0;">
+                                    Q4_0 GGUF
+                                </td>
+                                <td style="padding: 15px 20px; color: #4a5568;">
+                                    4-bit quantization for efficiency
+                                </td>
+                            </tr>
+                            <tr style="background: white; border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #2d3748;">
+                                    <span style="color: #ff6b6b;">💾</span> File Size
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #ff6b6b;">
+                                    3.6 GB
+                                </td>
+                                <td style="padding: 15px 20px; color: #4a5568;">
+                                    Compressed model size
+                                </td>
+                            </tr>
+                            <tr style="background: #f8f9fa;">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #2d3748;">
+                                    <span style="color: #feca57;">📝</span> Context Length
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #feca57;">
+                                    4096 tokens
+                                </td>
+                                <td style="padding: 15px 20px; color: #4a5568;">
+                                    Maximum input sequence length
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- System Configuration -->
+                <div style="margin-bottom: 20px;">
+                    <div style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%); color: white; padding: 15px; border-radius: 10px 10px 0 0; text-align: center;">
+                        <h3 style="margin: 0; font-size: 1.3rem; color: white;">💻 System Configuration</h3>
+                    </div>
+                    
+                    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 0 0 10px 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #c53030, #dd6b20); color: white;">
+                                <th style="padding: 12px 20px; text-align: left; font-size: 1rem; font-weight: 600; width: 25%;">Component</th>
+                                <th style="padding: 12px 20px; text-align: center; font-size: 1rem; font-weight: 600; width: 25%;">Specification</th>
+                                <th style="padding: 12px 20px; text-align: left; font-size: 1rem; font-weight: 600; width: 50%;">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="background: #f8f9fa; border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #2d3748;">
+                                    <span style="color: #ff6b6b;">☁️</span> Platform
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #ff6b6b;">
+                                    AWS EC2
+                                </td>
+                                <td style="padding: 15px 20px; color: #4a5568;">
+                                    Amazon Elastic Compute Cloud
+                                </td>
+                            </tr>
+                            <tr style="background: white; border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #2d3748;">
+                                    <span style="color: #48cae4;">🖥️</span> Instance Type
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #48cae4;">
+                                    m5.4xlarge
+                                </td>
+                                <td style="padding: 15px 20px; color: #4a5568;">
+                                    General purpose compute optimized
+                                </td>
+                            </tr>
+                            <tr style="background: #f8f9fa; border-bottom: 1px solid #e9ecef;">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #2d3748;">
+                                    <span style="color: #06d6a0;">⚡</span> CPU Cores
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #06d6a0;">
+                                    16 vcpu/ 8 physical
+                                </td>
+                                <td style="padding: 15px 20px; color: #4a5568;">
+                                    Intel Xeon Platinum processors
+                                </td>
+                            </tr>
+                            <tr style="background: white;">
+                                <td style="padding: 15px 20px; font-weight: 600; color: #2d3748;">
+                                    <span style="color: #9f7aea;">🧠</span> Total RAM
+                                </td>
+                                <td style="padding: 15px 20px; text-align: center; font-weight: 700; color: #9f7aea;">
+                                    64 GB
+                                </td>
+                                <td style="padding: 15px 20px; color: #4a5568;">
+                                    DDR4 system memory
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="padding: 15px; background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); border-radius: 10px; border-left: 5px solid #38a169;">
+                    <p style="margin: 0; font-size: 0.9rem; color: #2d3748;">
+                        <strong>🎯 Configuration Benefits:</strong> High-memory EC2 instance enables efficient model loading and inference, while 4-bit quantization maximizes resource utilization for cost-effective experimentation.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8 -->
+        <div class="slide">
+            <div class="slide-header">
+                <span class="checkmark">🔬</span>
+                <h2>Processing Methods Evaluated</h2>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: calc(100% - 80px); overflow-y: auto;">
+                <!-- Method 1: Sequential Processing -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 30%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <h3 style="color: white; margin: 0 0 10px 0; font-size: 1.1rem;">1️⃣ Sequential Processing</h3>
+                    <p style="margin: 0 0 10px 0; font-size: 0.85rem;"><strong>Strategy:</strong> Single model instance utilizing all available CPU cores with optimized threading.</p>
+                    
+                    <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; margin: 10px 0; font-family: 'Courier New', monospace; font-size: 0.8rem;">
+                        <div>llm = Llama(</div>
+                        <div>&nbsp;&nbsp;n_threads=8,&nbsp;&nbsp;# All CPU cores</div>
+                        <div>&nbsp;&nbsp;n_ctx=2048,&nbsp;&nbsp;&nbsp;# Full context window</div>
+                        <div>&nbsp;&nbsp;numa=True,&nbsp;&nbsp;&nbsp;&nbsp;# NUMA optimization</div>
+                        <div>&nbsp;&nbsp;use_mmap=True,&nbsp;# Memory mapping</div>
+                        <div>&nbsp;&nbsp;f16_kv=True&nbsp;&nbsp;&nbsp;# Efficient cache</div>
+                        <div>)</div>
+                    </div>
+                    
+                    <p style="margin: 0; font-size: 0.85rem;"><strong>Advantages:</strong> Maximum resource utilization, no overhead, layer splitting optimizations</p>
+                </div>
+
+                <!-- Method 2: Process Parallel -->
+                <div style="background: linear-gradient(135deg, #48cae4 0%, #0077b6 30%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <h3 style="color: white; margin: 0 0 10px 0; font-size: 1.1rem;">2️⃣ Process Parallel</h3>
+                    <p style="margin: 0 0 10px 0; font-size: 0.85rem;"><strong>Strategy:</strong> Multiple separate processes, each loading independent model instances.</p>
+                    
+                    <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; margin: 10px 0; font-family: 'Courier New', monospace; font-size: 0.8rem;">
+                        <div># 2 workers, each with limited resources</div>
+                        <div>ProcessPoolExecutor(max_workers=2)</div>
+                        <div># Per process: n_threads=2, n_ctx=1024</div>
+                    </div>
+                    
+                    <p style="margin: 0 0 8px 0; font-size: 0.85rem;"><strong>Theory:</strong> Parallel processing should leverage multiple CPU cores simultaneously</p>
+                    <p style="margin: 0; font-size: 0.85rem;"><strong>Reality:</strong> Resource contention and memory overhead</p>
+                </div>
+
+                <!-- Method 3: Thread Parallel -->
+                <div style="background: linear-gradient(135deg, #06d6a0 0%, #118ab2 30%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <h3 style="color: white; margin: 0 0 10px 0; font-size: 1.1rem;">3️⃣ Thread Parallel</h3>
+                    <p style="margin: 0 0 10px 0; font-size: 0.85rem;"><strong>Strategy:</strong> Single shared model with thread-safe access using locks.</p>
+                    
+                    <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; margin: 10px 0; font-family: 'Courier New', monospace; font-size: 0.8rem;">
+                        <div># Shared model with thread synchronization</div>
+                        <div>with self.lock:</div>
+                        <div>&nbsp;&nbsp;# Thread-safe access</div>
+                        <div>&nbsp;&nbsp;response = self.llm(prompt,</div>
+                        <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;max_tokens=50)</div>
+                    </div>
+                    
+                    <p style="margin: 0; font-size: 0.85rem;"><strong>Trade-off:</strong> Shared resources vs serialization overhead</p>
+                </div>
+
+                <!-- Method 4: Batch Processing -->
+                <div style="background: linear-gradient(135deg, #ff6b6b 0%, #feca57 30%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    <h3 style="color: white; margin: 0 0 10px 0; font-size: 1.1rem;">4️⃣ Batch Processing</h3>
+                    <p style="margin: 0 0 10px 0; font-size: 0.85rem;"><strong>Strategy:</strong> Optimized sequential processing with batching optimizations.</p>
+                    
+                    <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; margin: 10px 0; font-family: 'Courier New', monospace; font-size: 0.8rem;">
+                        <div>llm = Llama(</div>
+                        <div>&nbsp;&nbsp;n_batch=256,&nbsp;&nbsp;&nbsp;# Optimized batch size</div>
+                        <div>&nbsp;&nbsp;n_ubatch=128&nbsp;&nbsp;# Micro-batch optimization</div>
+                        <div>)</div>
+                    </div>
+                    
+                    <p style="margin: 0; font-size: 0.85rem;"><strong>Goal:</strong> Improved throughput through batch optimizations</p>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px; padding: 12px; background: linear-gradient(135deg, #f0f4ff 0%, #e8f2ff 100%); border-radius: 8px; border-left: 4px solid #667eea;">
+                <p style="margin: 0; font-size: 0.85rem; color: #2d3748;">
+                    <strong>🎯 Hypothesis:</strong> Each method tests different parallelization strategies to identify optimal CPU utilization patterns for LLM inference on multi-core systems.
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 9 -->
+        <div class="slide">
+            <div class="slide-header">
+                <span class="checkmark">📊</span>
+                <h2>Performance Results</h2>
+            </div>
+
+            <div style="height: calc(100% - 80px);">
+                <div style="text-align: center; margin-bottom: 25px;">
+                    <h3 style="color: #4a5568; margin-bottom: 15px;">⏱️ Average Response Time Comparison</h3>
+                </div>
+
+                <div style="margin-bottom: 25px;">
+                    <h3 style="color: #4a5568; margin-bottom: 15px; text-align: center;">📈 Detailed Performance Metrics (4 prompts)</h3>
+                    
+                    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                                <th style="padding: 15px; text-align: left; font-size: 1.1rem; font-weight: 600;">Method</th>
+                                <th style="padding: 15px; text-align: center; font-size: 1.1rem; font-weight: 600;">Avg Time</th>
+                                <th style="padding: 15px; text-align: center; font-size: 1.1rem; font-weight: 600;">Total Time</th>
+                                <th style="padding: 15px; text-align: center; font-size: 1.1rem; font-weight: 600;">Success Rate</th>
+                                <th style="padding: 15px; text-align: center; font-size: 1.1rem; font-weight: 600;">Throughput</th>
+                                <th style="padding: 15px; text-align: center; font-size: 1.1rem; font-weight: 600;">Performance vs Best</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-bottom: 2px solid #e9ecef; border-left: 5px solid #38a169;">
+                                <td style="padding: 15px; font-weight: 700; color: #2d3748;">
+                                    🥇 <strong>Sequential</strong>
+                                </td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #38a169;">4.38s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #38a169;">17.51s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #38a169;">100%</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #38a169;">0.23 prompts/s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 700; color: #38a169; background: #e8f5e8;">
+                                    <strong>BEST</strong>
+                                </td>
+                            </tr>
+                            <tr style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); border-bottom: 2px solid #e9ecef; border-left: 5px solid #feca57;">
+                                <td style="padding: 15px; font-weight: 700; color: #2d3748;">
+                                    🥈 <strong>Batch Processing</strong>
+                                </td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #d69e2e;">4.38s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #d69e2e;">17.52s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #d69e2e;">100%</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #d69e2e;">0.23 prompts/s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #d69e2e;">0.1% slower</td>
+                            </tr>
+                            <tr style="background: linear-gradient(135deg, #f8d7da 0%, #f1c0c3 100%); border-bottom: 2px solid #e9ecef; border-left: 5px solid #e74c3c;">
+                                <td style="padding: 15px; font-weight: 700; color: #2d3748;">
+                                    🥉 <strong>Thread Parallel</strong>
+                                </td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #e74c3c;">4.63s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #e74c3c;">18.51s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #e74c3c;">100%</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #e74c3c;">0.22 prompts/s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #e74c3c;">5.7% slower</td>
+                            </tr>
+                            <tr style="background: linear-gradient(135deg, #f5c6cb 0%, #f1a5ab 100%); border-left: 5px solid #dc3545;">
+                                <td style="padding: 15px; font-weight: 700; color: #2d3748;">
+                                    ❌ <strong>Process Parallel</strong>
+                                </td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #dc3545;">38.18s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #dc3545;">84.53s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #dc3545;">100%</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 600; color: #dc3545;">0.05 prompts/s</td>
+                                <td style="padding: 15px; text-align: center; font-weight: 700; color: #dc3545; background: #f8d7da;">
+                                    <strong>772% slower</strong>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+                    <div style="padding: 15px; background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); border-radius: 10px; border-left: 5px solid #38a169;">
+                        <h4 style="margin: 0 0 10px 0; color: #2d3748;">🏆 Key Findings</h4>
+                        <ul style="margin: 0; padding-left: 20px; font-size: 0.9rem; color: #2d3748;">
+                            <li>Sequential processing achieved optimal performance</li>
+                            <li>Batch optimization provided negligible improvement</li>
+                            <li>Thread parallelism showed minimal overhead</li>
+                        </ul>
+                    </div>
+
+                    <div style="padding: 15px; background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%); border-radius: 10px; border-left: 5px solid #dc3545;">
+                        <h4 style="margin: 0 0 10px 0; color: #2d3748;">⚠️ Process Parallel Issues</h4>
+                        <ul style="margin: 0; padding-left: 20px; font-size: 0.9rem; color: #2d3748;">
+                            <li>Massive performance degradation (772% slower)</li>
+                            <li>Memory overhead from multiple model instances</li>
+                            <li>Resource contention on CPU-bound workloads</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 10 -->
+        <div class="slide">
+            <div class="slide-header">
+                <span class="checkmark">🤖</span>
+                <h2>Reinforcement Learning Parameter Optimization</h2>
+            </div>
+
+            <div style="height: calc(100% - 80px); overflow-y: auto;">
+                <!-- RL Approach -->
+                <div style="margin-bottom: 25px;">
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 10px 10px 0 0; text-align: center;">
+                        <h3 style="margin: 0; font-size: 1.2rem; color: white;">🧠 RL Approach</h3>
+                    </div>
+                    
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 0 0 10px 10px; border: 2px solid #e9ecef; border-top: none;">
+                        <div style="margin-bottom: 12px;">
+                            <strong style="color: #dc3545;">Challenge:</strong> Manual parameter tuning is limited and time-consuming. The parameter space is vast with complex interactions.
+                        </div>
+                        <div>
+                            <strong style="color: #38a169;">Solution:</strong> Use reinforcement learning to systematically explore parameter combinations and optimize for multiple objectives.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RL Components -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px;">
+                    <div>
+                        <div style="background: #48cae4; color: white; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 8px;">
+                            <strong>🎯 State Space</strong>
+                        </div>
+                        <div style="background: #f0f8ff; padding: 12px; border-radius: 8px; font-size: 0.85rem;">
+                            Parameter configurations: n_threads, n_batch, n_ubatch, max_workers, context size, etc.
+                        </div>
+                    </div>
+                    <div>
+                        <div style="background: #06d6a0; color: white; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 8px;">
+                            <strong>🎲 Action Space</strong>
+                        </div>
+                        <div style="background: #f0fff4; padding: 12px; border-radius: 8px; font-size: 0.85rem;">
+                            <strong>Explore:</strong> Random parameter sampling<br/>
+                            <strong>Exploit:</strong> Mutate best configurations
+                        </div>
+                    </div>
+                    <div>
+                        <div style="background: #feca57; color: white; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 8px;">
+                            <strong>🏆 Reward Function</strong>
+                        </div>
+                        <div style="background: #fffbf0; padding: 12px; border-radius: 8px; font-size: 0.85rem;">
+                            Multi-objective: 60% speed + 20% reliability + 10% memory + 10% stability
+                        </div>
+                    </div>
+                    <div>
+                        <div style="background: #ff6b6b; color: white; padding: 10px; border-radius: 8px; text-align: center; margin-bottom: 8px;">
+                            <strong>🔬 Environment</strong>
+                        </div>
+                        <div style="background: #fff5f5; padding: 12px; border-radius: 8px; font-size: 0.85rem;">
+                            Real inference system with actual performance measurement and resource monitoring
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RL Results -->
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: #4a5568; margin-bottom: 15px; text-align: center;">📊 RL Optimization Results</h3>
+                    
+                    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.1); margin-bottom: 15px;">
+                        <tbody>
+                            <tr style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-left: 5px solid #38a169;">
+                                <td style="padding: 12px 15px; font-weight: 700; color: #2d3748;">Thread Parallel (RL)</td>
+                                <td style="padding: 12px 15px; text-align: center; font-weight: 700; color: #38a169; font-size: 1.2rem;">2.57s</td>
+                            </tr>
+                            <tr style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); border-left: 5px solid #feca57;">
+                                <td style="padding: 12px 15px; font-weight: 700; color: #2d3748;">Batch Processing (RL)</td>
+                                <td style="padding: 12px 15px; text-align: center; font-weight: 700; color: #d69e2e; font-size: 1.2rem;">2.64s</td>
+                            </tr>
+                            <tr style="background: linear-gradient(135deg, #f8d7da 0%, #f1c0c3 100%); border-left: 5px solid #6c757d;">
+                                <td style="padding: 12px 15px; font-weight: 700; color: #2d3748;">Sequential (Baseline)</td>
+                                <td style="padding: 12px 15px; text-align: center; font-weight: 700; color: #6c757d; font-size: 1.2rem;">4.36s</td>
+                            </tr>
+                            <tr style="background: linear-gradient(135deg, #f5c6cb 0%, #f1a5ab 100%); border-left: 5px solid #dc3545;">
+                                <td style="padding: 12px 15px; font-weight: 700; color: #2d3748;">Process Parallel (RL)</td>
+                                <td style="padding: 12px 15px; text-align: center; font-weight: 700; color: #dc3545; font-size: 1.2rem;">FAILED</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Breakthrough Discovery -->
+                <div style="background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%); padding: 15px; border-radius: 10px; border-left: 5px solid #38a169; margin-bottom: 20px;">
+                    <h4 style="margin: 0 0 10px 0; color: #2d3748;">🚀 Breakthrough Discovery</h4>
+                    <p style="margin: 0 0 10px 0; font-weight: 700; color: #38a169;">RL found configurations 40%+ faster than sequential processing!</p>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 0.9rem;">
+                        <li><strong>Thread Parallel:</strong> 2.57s (41.1% faster) - {max_threads=4, n_batch=128, n_ubatch=32, queue_based}</li>
+                        <li><strong>Batch Processing:</strong> 2.64s (39.5% faster) - {batch_size=1, n_batch=2048, n_ubatch=64}</li>
+                        <li><strong>Process Parallel:</strong> Failed completely due to Python pickle limitations</li>
+                    </ul>
+                </div>
+
+                <!-- Comparison Table -->
+                <div>
+                    <h4 style="color: #4a5568; margin-bottom: 10px; text-align: center;">🔍 RL vs Manual Tuning Comparison</h4>
+                    
+                    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.1);">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                                <th style="padding: 12px; text-align: left; font-size: 1rem;">Method</th>
+                                <th style="padding: 12px; text-align: center; font-size: 1rem;">Manual Tuning</th>
+                                <th style="padding: 12px; text-align: center; font-size: 1rem;">RL Optimization</th>
+                                <th style="padding: 12px; text-align: center; font-size: 1rem;">RL Improvement</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="background: #f8f9fa;">
+                                <td style="padding: 12px; font-weight: 600;">Thread Parallel</td>
+                                <td style="padding: 12px; text-align: center;">4.65s</td>
+                                <td style="padding: 12px; text-align: center; color: #38a169; font-weight: 600;">2.57s</td>
+                                <td style="padding: 12px; text-align: center; color: #38a169; font-weight: 700;">44.7% faster</td>
+                            </tr>
+                            <tr style="background: white;">
+                                <td style="padding: 12px; font-weight: 600;">Batch Processing</td>
+                                <td style="padding: 12px; text-align: center;">4.36s</td>
+                                <td style="padding: 12px; text-align: center; color: #38a169; font-weight: 600;">2.64s</td>
+                                <td style="padding: 12px; text-align: center; color: #38a169; font-weight: 700;">39.4% faster</td>
+                            </tr>
+                            <tr style="background: #f8f9fa;">
+                                <td style="padding: 12px; font-weight: 600;">Process Parallel</td>
+                                <td style="padding: 12px; text-align: center;">39.62s</td>
+                                <td style="padding: 12px; text-align: center; color: #dc3545; font-weight: 600;">FAILED</td>
+                                <td style="padding: 12px; text-align: center; color: #dc3545; font-weight: 600;">Pickle errors</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <div class="navigation">
+            <button class="nav-button" id="prevBtn" onclick="changeSlide(-1)">← Previous</button>
+            <div class="slide-counter">
+                <span id="currentSlide">1</span> / <span id="totalSlides">10</span>
+            </div>
+            <button class="nav-button" id="nextBtn" onclick="changeSlide(1)">Next →</button>
+        </div>
+    </div>
+
+    <script>
+        let currentSlideIndex = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+
+        function updateSlideCounter() {
+            document.getElementById('currentSlide').textContent = currentSlideIndex + 1;
+            document.getElementById('totalSlides').textContent = totalSlides;
+        }
+
+        function updateNavigationButtons() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            
+            prevBtn.disabled = currentSlideIndex === 0;
+            nextBtn.disabled = currentSlideIndex === totalSlides - 1;
+        }
+
+        function showSlide(index) {
+            slides.forEach(slide => slide.classList.remove('active'));
+            slides[index].classList.add('active');
+            updateSlideCounter();
+            updateNavigationButtons();
+        }
+
+        function changeSlide(direction) {
+            const newIndex = currentSlideIndex + direction;
+            if (newIndex >= 0 && newIndex < totalSlides) {
+                currentSlideIndex = newIndex;
+                showSlide(currentSlideIndex);
+            }
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'ArrowLeft') {
+                changeSlide(-1);
+            } else if (event.key === 'ArrowRight') {
+                changeSlide(1);
+            }
+        });
+
+        // Initialize
+        updateSlideCounter();
+        updateNavigationButtons();
+    </script>
+</body>
+</html>
